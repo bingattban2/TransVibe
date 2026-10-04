@@ -1,0 +1,59 @@
+name: Build TransVibe Native
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "app/src/main/cpp/**"
+      - ".github/workflows/build-native.yml"
+
+jobs:
+  build-native:
+    runs-on: ubuntu-24.04
+    env:
+      NDK_VERSION: "29.0.14206865"
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android NDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "ndk;${NDK_VERSION}"
+          echo "ANDROID_NDK=${ANDROID_SDK_ROOT}/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Configure native build
+        run: |
+          cmake \
+            -S app/src/main/cpp \
+            -B native-build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="${ANDROID_SDK_ROOT}/ndk/${NDK_VERSION}/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-26 \
+            -DANDROID_STL=c++_static
+
+      - name: Build native library
+        run: cmake --build native-build --target transvibe_native --parallel 2
+
+      - name: Verify native runtime is self-contained
+        run: |
+          if readelf -d native-build/libtransvibe_native.so | grep -q "libc++_shared.so"; then
+            echo "ERROR: libtransvibe_native.so still depends on libc++_shared.so" >&2
+            exit 1
+          fi
+
+      - name: Stage library
+        run: |
+          mkdir -p artifact/arm64-v8a
+          cp native-build/libtransvibe_native.so artifact/arm64-v8a/
+
+      - name: Upload native library
+        uses: actions/upload-artifact@v4
+        with:
+          name: transvibe-native-arm64-v8a
+          path: artifact/arm64-v8a/libtransvibe_native.so

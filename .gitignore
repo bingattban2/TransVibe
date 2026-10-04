@@ -1,0 +1,16 @@
+# Gradle / Android generated files
+.gradle/
+**/build/
+local.properties
+
+# CMake / NDK generated cache
+**/.cxx/
+.externalNativeBuild/
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
